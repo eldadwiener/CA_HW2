@@ -50,8 +50,11 @@ class cache{
         void insert(uint32_t addr); // throws evicted block if any
 
     private:
+        uint32_t getTag(uint32_t addr);
+        uint32_t getSet(uint32_t addr);
+        uint32_t getOffset(uint32_t addr);
         vector<cacheSet> _sets;
-        uint32_t _size, _numSets, _blockSize;
+        uint32_t _size, _setBits, _offsetBits;
         policy _pol;
 };
 
