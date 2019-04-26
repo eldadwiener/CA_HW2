@@ -18,7 +18,7 @@ typedef struct stats {
     double avgAccTime;
 }stats;
 
-class notfound :public exception {} ;
+class notfound :public exception {} notfound;
 
 // TODO: can a block be of size 2? if yes, we need 2 blocks per read/write
 typedef struct cacheBlock{
@@ -30,15 +30,16 @@ typedef struct cacheBlock{
 // The set holds a block for each way that exists in the cache
 class cacheSet{
     public:
-        cacheSet(uint32_t _blockSize,uint32_t _waySize);
+        cacheSet(uint32_t blockSize,uint32_t waySize);
         void read(uint32_t tag, uint32_t offset); // throws if tag does not exist
         void write(uint32_t tag, uint32_t offset); // throws if tag does not exist
         void insert(uint32_t tag); // throws evicted block if any
         
     private:
         list<cacheBlock>::iterator find(uint32_t tag);
+
         list<cacheBlock> _ways;
-        uint32_t _blockSize,_waySize;
+        uint32_t _blockSize, _waySize;
 };
 
 // will hold all the sets and manage them
