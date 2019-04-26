@@ -22,7 +22,7 @@ class notfound :public exception {} ;
 
 // TODO: can a block be of size 2? if yes, we need 2 blocks per read/write
 typedef struct cacheBlock{
-    cacheBlock(uint32_t _tag, bool _dirty): tag(_tag), dirty(_dirty) {}
+    cacheBlock(uint32_t _tag): tag(_tag), dirty(false) {}
     uint32_t tag;
     bool dirty;
 }cacheBlock;
