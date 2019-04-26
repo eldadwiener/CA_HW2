@@ -11,6 +11,7 @@ using namespace std;
 #define VICTIMSIZE 4
 #define VICTIMTIME 1
 enum policy{NOWRITEALLOC,WRITEALLOC};
+enum level{L1,L2,VICTIM,MEMORY};
 
 typedef struct stats {
     double L1Missrate;
@@ -18,8 +19,15 @@ typedef struct stats {
     double avgAccTime;
 }stats;
 
-class notfound :public exception {} notfound;
+class notfound :public exception;
 
+class found :public exception
+{
+    public:
+        found() {};
+        found(level loc) : location(loc) {};
+        level location;
+};
 // TODO: can a block be of size 2? if yes, we need 2 blocks per read/write
 typedef struct cacheBlock{
     cacheBlock(uint32_t _tag): tag(_tag), dirty(false) {}
@@ -45,7 +53,7 @@ class cacheSet{
 // will hold all the sets and manage them
 class cache{
     public:
-        cache(uint32_t size, uint32_t numSets, uint32_t blockSize, policy pol);
+        cache(uint32_t size, uint32_t setBits, uint32_t offsetBits, policy pol, level lev);
         void read(uint32_t addr); // throws if tag does not exist
         void write(uint32_t addr); // throws if tag does not exist
         void insert(uint32_t addr); // throws evicted block if any
@@ -57,6 +65,7 @@ class cache{
         vector<cacheSet> _sets;
         uint32_t _size, _setBits, _offsetBits;
         policy _pol;
+        level _level;
 };
 
 
@@ -82,7 +91,7 @@ class MLCache {
     private:
     	uint32_t _MemCyc, _BSize, _L1Size, _L2Size, _L1Assoc, _L2Assoc,
 					_L1Cyc, _L2Cyc, _WrAlloc, _VicCache,
-                    _L1Misses, _L2Misses, _totalTime, _numAccesses;
+                    _L1Misses, _L2Misses, _totalTime, _L1Accesses, _L2Accesses;
         cache _L1, _L2;
         victim _vict;
 };
