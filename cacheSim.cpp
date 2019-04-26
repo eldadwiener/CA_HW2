@@ -3,7 +3,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "Cache.h"
+#include "cache.h"
 
 using std::string;
 using std::cout;
@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
 			return 0;
 		}
 	}
-
+    MLCache sysCache(MemCyc, BSize, L1Size, L2Size, L1Assoc, L2Assoc, L1Cyc, L2Cyc, WrAlloc, VicCache);
 
 	while (getline(file, line))
 	{
@@ -76,23 +76,27 @@ int main(int argc, char *argv[]) {
 		}
 
 		// DEBUG - remove this line
-		cout << "operation: " << operation;
+		//cout << "operation: " << operation;
 
 		string cutAddress = address.substr(2); // Removing the "0x" part of the address
 
 		// DEBUG - remove this line
-		cout << ", address (hex)" << cutAddress;
+		//cout << ", address (hex)" << cutAddress;
 
 		unsigned long int num = 0;
 		num = strtoul(cutAddress.c_str(), NULL, 16);
 
 		// DEBUG - remove this line
-		cout << " (dec) " << num << endl;
+		//cout << " (dec) " << num << endl;
+        if (operation == 'R')
+            sysCache.read(num);
+        else
+            sysCache.write(num);
 	}
-
-	printf("L1miss=%.03f ", L1MissRate);
-	printf("L2miss=%.03f ", L2MissRate);
-	printf("AccTimeAvg=%.03f\n", avgAccTime);
+    stats st = sysCache.getStats();
+	printf("L1miss=%.03f ", st.L1MissRate);
+	printf("L2miss=%.03f ", st.L2MissRate);
+	printf("AccTimeAvg=%.03f\n", st.avgAccTime);
 
 	return 0;
 }

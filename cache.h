@@ -14,12 +14,17 @@ enum policy{NOWRITEALLOC,WRITEALLOC};
 enum level{L1,L2,VICTIM,MEMORY};
 
 typedef struct stats {
-    double L1Missrate;
-    double L2Missrate;
+    double L1MissRate;
+    double L2MissRate;
     double avgAccTime;
 }stats;
 
-class notfound :public exception;
+class EvictedBlock :public exception
+{
+    public:
+        EvictedBlock(uint32_t _addr) : addr(_addr) {};
+        uint32_t addr;
+};
 
 class found :public exception
 {
@@ -42,6 +47,7 @@ class cacheSet{
         void read(uint32_t tag, uint32_t offset); // throws if tag does not exist
         void write(uint32_t tag, uint32_t offset); // throws if tag does not exist
         void insert(uint32_t tag); // throws evicted block if any
+        void evict(uint32_t tag); // evict addr if in set, otherwise ignore call
         
     private:
         list<cacheBlock>::iterator find(uint32_t tag);
@@ -57,6 +63,7 @@ class cache{
         void read(uint32_t addr); // throws if tag does not exist
         void write(uint32_t addr); // throws if tag does not exist
         void insert(uint32_t addr); // throws evicted block if any
+        void evict(uint32_t addr); // evict addr if in cache, otherwise ignore call
 
     private:
         uint32_t getTag(uint32_t addr);
@@ -89,6 +96,7 @@ class MLCache {
         stats getStats();
 
     private:
+        void copyToCaches(uint32_t addr, level fromLevel);
     	uint32_t _MemCyc, _BSize, _L1Size, _L2Size, _L1Assoc, _L2Assoc,
 					_L1Cyc, _L2Cyc, _WrAlloc, _VicCache,
                     _L1Misses, _L2Misses, _totalTime, _L1Accesses, _L2Accesses;

@@ -1,4 +1,5 @@
 #include <cmath>
+#include <assert.h>
 #include "cache.h"
 
 // TODO: MLCache must make sure size - setBits > 0
@@ -53,10 +54,17 @@ void cache::insert(uint32_t addr)
     {
         _sets[set].insert(tag);
     }
-    catch (found) // add finding cache name to exception
+    catch (const cacheBlock& cb) // construct full addr and rethrow
     {
-        throw found(_level);
+        uint32_t evAddr = (cb.tag << (_setBits + _offsetBits)) + (set << _offsetBits); //with offset 0
+        throw EvictedBlock(evAddr);
     }
+}
+
+void cache::evict(uint32_t addr)
+{
+    uint32_t tag = getTag(addr), set = getSet(addr); 
+    _sets[set].evict(tag);
 }
 
 cacheSet::cacheSet(uint32_t blockSize, uint32_t waySize): _ways(), _blockSize(blockSize), _waySize(waySize){}
@@ -95,9 +103,20 @@ void cacheSet::insert(uint32_t tag) {
 		return;
 	}
 	cacheBlock temp = _ways.front();
-	_ways.pop_front;
+	_ways.pop_front();
 	_ways.push_back(cacheBlock(tag));
 	throw temp; // temp is evicted, throw it
+}
+
+void cacheSet::evict(uint32_t tag)
+{
+	list<cacheBlock>::iterator itr = find(tag);
+	if (itr == _ways.end())
+	{
+        return; // not found
+	}
+    _ways.erase(itr);
+    // TODO: if dirty is relevant, need to check and writeback
 }
 
 list<cacheBlock>::iterator cacheSet::find(uint32_t tag) {
@@ -135,7 +154,7 @@ void victim::insert(uint32_t tag) {
         _blocks.push_back(cacheBlock(tag));
         return;
     }
-    _blocks.pop_front;
+    _blocks.pop_front();
     _blocks.push_back(cacheBlock(tag));
     //TODO maybe need to update somthing
 }
@@ -157,11 +176,12 @@ void MLCache::read(uint32_t addr)
         ++_L1Accesses;
         _L1.read(addr); // try reading addr from L1, will throw exception if missing
         // if we are here, addr was not found yet, check L2
+        ++_L1Misses;
         _totalTime += _L2Cyc; // add access time
         ++_L2Accesses;
         _L2.read(addr); // try reading addr from L2
-
         // not found in L2, check victim if exists
+        ++_L2Misses;
         if (_VicCache)
         {
             _totalTime += VICTIMTIME;
@@ -175,17 +195,7 @@ void MLCache::read(uint32_t addr)
     }
     catch (const found& fn)
     {
-        switch (fn.location)
-        {
-        case L1: // nothing to do
-            break;
-        case L2:
-            // TODO: need to insert to L1
-            break;
-        default: // found in MEMORY or VICTIM
-            // TODO: need to insert to L1 and L2
-            break;
-        }
+        copyToCaches(addr, fn.location);
     }
 }
 
@@ -198,11 +208,12 @@ void MLCache::write(uint32_t addr)
         ++_L1Accesses;
         _L1.write(addr); // try writing to addr in L1, will throw exception if succeeded 
         // if we are here, addr was not in L1, try L2
+        ++_L1Misses;
         _totalTime += _L2Cyc; 
         ++_L2Accesses;
         _L2.write(addr); // try reading addr from L2
-
         // not in L2, check victim if exists
+        ++_L2Misses;
         if (_VicCache)
         {
             // TODO: how to handle Victim cache writes 
@@ -213,22 +224,44 @@ void MLCache::write(uint32_t addr)
         // TODO: do we need more time for inserting new entry?
         throw found(MEMORY);
     }
-
     catch (const found& fn)
     {
         if (_WrAlloc)
+            copyToCaches(addr, fn.location);
+    }
+}
+
+void MLCache::copyToCaches(uint32_t addr, level fromLevel)
+{
+    if(fromLevel == L1) return; // nothing to copy
+    if (fromLevel != L2) // need to copy into L2 too
+    {
+        try
         {
-            switch (fn.location)
-            {
-            case L1: // nothing to do
-                break;
-            case L2:
-                // TODO: bring data to L1 
-                break;
-            default: // found in MEMORY or VICTIM
-                // TODO: need to insert to L1 and L2
-                break;
-            }
+            _L2.insert(addr);
+        }
+        catch (const EvictedBlock& eb) // there was an eviction in L2, evict from L1
+        {
+            _L1.evict(eb.addr);
         }
     }
+    // insert to L1
+    try
+    {
+        _L1.insert(addr);
+    }
+    catch (const EvictedBlock& eb)
+    {
+        // TODO: do something if need to writeback
+    }
+}
+
+
+stats MLCache::getStats()
+{
+    stats st;
+    st.L1MissRate = ((double)_L1Misses) / _L1Accesses;
+    st.L2MissRate = ((double)_L2Misses) / _L2Accesses;
+    st.avgAccTime = ((double)_totalTime) / _L1Accesses;
+    return st;
 }
