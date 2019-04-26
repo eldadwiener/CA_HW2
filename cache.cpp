@@ -1,4 +1,4 @@
-#include <math>
+#include <math.h>
 #include "cache.h"
 
 // TODO: MLCache must make sure size/numsets is a valid integer (>0)
@@ -35,7 +35,10 @@ void cacheSet::read(uint32_t tag, uint32_t offset) {//Cache fix the tag
 	{
 		throw notfound;
 	}
-	throw itr;
+	cacheBlock temp = *itr;
+	_ways.erase(itr);
+	_ways.push_back(temp);
+	throw temp;
 }
 
 // throws if tag does not exist
@@ -45,8 +48,11 @@ void cacheSet::write(uint32_t tag, uint32_t offset) {
 	{
 		throw notfound;
 	}
-	itr->dirty = true;
-	throw itr;
+	cacheBlock temp = *itr;
+	_ways.erase(itr);
+	temp.dirty = true;
+	_ways.push_back(temp);
+	throw temp;
 }
 
 // throws evicted block if any
@@ -81,7 +87,9 @@ void victim::get(uint32_t tag) {
 	while (itr != _blocks.end())
 	{
 		if (itr->tag == tag) {
-			throw itr;
+			cacheBlock temp = *itr;
+			_blocks.erase(itr);
+			throw temp;
 		}
 		itr++;
 	}
