@@ -18,13 +18,14 @@ typedef struct stats {
     double avgAccTime;
 }stats;
 
+class notfound :public exception {} ;
+
 // TODO: can a block be of size 2? if yes, we need 2 blocks per read/write
-class cacheBlock{
-    public:
-        cacheBlock(uint32_t _tag, bool _dirty): tag(_tag), dirty(_dirty) {}
-        uint32_t tag;
-        bool dirty;
-};
+typedef struct cacheBlock{
+    cacheBlock(uint32_t _tag, bool _dirty): tag(_tag), dirty(_dirty) {}
+    uint32_t tag;
+    bool dirty;
+}cacheBlock;
 
 // The set holds a block for each way that exists in the cache
 class cacheSet{
@@ -82,5 +83,4 @@ class MLCache {
         victim _vict;
 };
 
-class notfound :public exception {} ;
 #endif
