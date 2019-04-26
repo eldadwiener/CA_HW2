@@ -5,6 +5,7 @@
 #include <vector>
 #include <iostream>
 #include <exception>
+#include <stdint.h>
 
 using namespace std;
 
@@ -69,10 +70,11 @@ class cache{
         uint32_t getTag(uint32_t addr);
         uint32_t getSet(uint32_t addr);
         uint32_t getOffset(uint32_t addr);
-        vector<cacheSet> _sets;
+
         uint32_t _size, _setBits, _offsetBits;
         policy _pol;
         level _level;
+		vector<cacheSet> _sets;
 };
 
 

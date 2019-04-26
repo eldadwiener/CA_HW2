@@ -134,12 +134,12 @@ list<cacheBlock>::iterator cacheSet::find(uint32_t tag) {
 //victim c'tor
 victim::victim(uint32_t blockSize) : _blockSize(blockSize), _blocks() {}
 // throws block or NOTFOUND exception
-void victim::get(uint32_t tag) {
+void victim::get(uint32_t addr) {
+	uint32_t tag = addr >> _blockSize;
 	list<cacheBlock>::iterator itr = _blocks.begin();
 	while (itr != _blocks.end())
 	{
 		if (itr->tag == tag) {
-			cacheBlock temp = *itr;
 			_blocks.erase(itr);
 			throw found(VICTIM);
 		}
@@ -149,7 +149,8 @@ void victim::get(uint32_t tag) {
 }
 
 // throws evicted block if any TODO: is this needed?
-void victim::insert(uint32_t tag) {
+void victim::insert(uint32_t addr) {
+	uint32_t tag = addr >> _blockSize;
     if (_blocks.size() < VICTIMSIZE) {
         _blocks.push_back(cacheBlock(tag));
         return;
@@ -242,6 +243,10 @@ void MLCache::copyToCaches(uint32_t addr, level fromLevel)
         }
         catch (const EvictedBlock& eb) // there was an eviction in L2, evict from L1
         {
+			// send the block to VicCache
+			if (_VicCache)
+				_vict.insert(eb.addr);
+			//snooping
             _L1.evict(eb.addr);
         }
     }
