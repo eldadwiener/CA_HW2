@@ -23,20 +23,22 @@ typedef struct stats {
 class EvictedBlock :public exception
 {
     public:
-        EvictedBlock(uint32_t _addr) : addr(_addr) {};
+        EvictedBlock(uint32_t _addr, bool _dirty = false) : addr(_addr), dirty (_dirty) {};
         uint32_t addr;
+		bool dirty;
 };
 
 class found :public exception
 {
     public:
         found() {};
-        found(level loc) : location(loc) {};
+        found(level loc, bool _dirty = false) : location(loc), dirty(_dirty) {};
         level location;
+		bool dirty;
 };
 // TODO: can a block be of size 2? if yes, we need 2 blocks per read/write
 typedef struct cacheBlock{
-    cacheBlock(uint32_t _tag): tag(_tag), dirty(false) {}
+    cacheBlock(uint32_t _tag, bool _dirty = false): tag(_tag), dirty(_dirty) {}
     uint32_t tag;
     bool dirty;
 }cacheBlock;
@@ -47,9 +49,9 @@ class cacheSet{
         cacheSet(uint32_t blockSize,uint32_t waySize);
         void read(uint32_t tag, uint32_t offset); // throws if tag does not exist
         void write(uint32_t tag, uint32_t offset); // throws if tag does not exist
-        void insert(uint32_t tag); // throws evicted block if any
-        void evict(uint32_t tag); // evict addr if in set, otherwise ignore call
-        
+        void insert(uint32_t tag, bool dirty = false); // throws evicted block if any
+        bool evict(uint32_t tag); // evict addr if in set, otherwise ignore call, support dirty 
+		void set_dirty(uint32_t tag);//set line to dirty
     private:
         list<cacheBlock>::iterator find(uint32_t tag);
 
@@ -63,9 +65,9 @@ class cache{
         cache(uint32_t size, uint32_t setBits, uint32_t offsetBits, policy pol, level lev);
         void read(uint32_t addr); // throws if tag does not exist
         void write(uint32_t addr); // throws if tag does not exist
-        void insert(uint32_t addr); // throws evicted block if any
-        void evict(uint32_t addr); // evict addr if in cache, otherwise ignore call
-
+        void insert(uint32_t addr, bool dirty = false); // throws evicted block if any
+        bool evict(uint32_t addr); // evict addr if in cache, otherwise ignore call
+		void set_dirty(uint32_t addr);//set line to dirty
     private:
         uint32_t getTag(uint32_t addr);
         uint32_t getSet(uint32_t addr);
@@ -81,8 +83,8 @@ class cache{
 class victim {
     public:
         victim(uint32_t blockSize);
-        void get(uint32_t tag); // throws block or NOTFOUND exception
-        void insert(uint32_t tag); // throws evicted block if any TODO: is this needed?
+        void get(uint32_t tag, bool write_n_a = false); // throws block or NOTFOUND exception
+        void insert(uint32_t tag, bool dirty = false); // throws evicted block if any TODO: is this needed?
 
     private: 
         uint32_t _blockSize;
@@ -98,7 +100,7 @@ class MLCache {
         stats getStats();
 
     private:
-        void copyToCaches(uint32_t addr, level fromLevel);
+        void copyToCaches(uint32_t addr, level fromLevel, bool dirty);
     	uint32_t _MemCyc, _BSize, _L1Size, _L2Size, _L1Assoc, _L2Assoc,
 					_L1Cyc, _L2Cyc, _WrAlloc, _VicCache,
                     _L1Misses, _L2Misses, _totalTime, _L1Accesses, _L2Accesses;
