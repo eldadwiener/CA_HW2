@@ -58,6 +58,7 @@ int main(int argc, char *argv[]) {
 		} else if (s == "--vic-cache") {
 			VicCache = atoi(argv[i + 1]);
 		} else {
+			cout << "the wrong line is: " << s <<endl;
 			cerr << "Error in arguments" << endl;
 			return 0;
 		}
