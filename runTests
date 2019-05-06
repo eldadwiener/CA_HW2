@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#test automation script
+INPUT_DIR="tests"
+OUT_DIR="out"
+MY_OUT_DIR_NAME="result"
+OUT_BIN="cacheSim"
+
+#remove the directory if it exists, to create a new empty one for the new run.
+if [[  -e $MY_OUT_DIR_NAME ]]; then
+	rm -rf $mkdir $MY_OUT_DIR_NAME
+fi
+mkdir $MY_OUT_DIR_NAME
+
+number_of_tests=`ls -l $INPUT_DIR | grep "ex.*command" | wc -l`
+echo -e 'number of tests to run: ' ${number_of_tests}
+for i in `seq 1 $number_of_tests` ; do
+	echo 'running test  example'$i'_command'
+	commandFile=`cat $INPUT_DIR/'example'$i'_command'`
+	traceFile=$INPUT_DIR/'example'$i'_trace'
+	./$OUT_BIN $traceFile $commandFile > $MY_OUT_DIR_NAME/'myout_'$i
+	if [ `diff $OUT_DIR/'example'$i'_output' $MY_OUT_DIR_NAME/'myout_'$i | wc -w` -eq 0 ] ; then 
+		echo -e "     Passed!"
+	else 
+		echo -e "     Failed."
+		diff $OUT_DIR/'example'$i'_output' $MY_OUT_DIR_NAME/'myout_'$i 
+	fi
+done
+#echo -e 'cleaning directory '
+#rm -rf $MY_OUT_DIR_NAME
