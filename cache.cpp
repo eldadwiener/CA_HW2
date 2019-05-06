@@ -34,6 +34,11 @@ void cache::read(uint32_t addr)
     }
 }
 
+void cache::set_dirty(uint32_t addr) {
+	uint32_t tag = getTag(addr), set = getSet(addr);
+	_sets[set].set_dirty(tag);
+}
+
 void cache::write(uint32_t addr)
 {
     uint32_t tag = getTag(addr), set = getSet(addr), offset = getOffset(addr);
@@ -47,24 +52,24 @@ void cache::write(uint32_t addr)
     }
 }
 
-void cache::insert(uint32_t addr)
+void cache::insert(uint32_t addr, bool dirty)
 {
     uint32_t tag = getTag(addr), set = getSet(addr); 
     try
     {
-        _sets[set].insert(tag);
+        _sets[set].insert(tag, dirty);
     }
     catch (const cacheBlock& cb) // construct full addr and rethrow
     {
         uint32_t evAddr = (cb.tag << (_setBits + _offsetBits)) + (set << _offsetBits); //with offset 0
-        throw EvictedBlock(evAddr);
+        throw EvictedBlock(evAddr, cb.dirty);
     }
 }
 
-void cache::evict(uint32_t addr)
+bool cache::evict(uint32_t addr)
 {
     uint32_t tag = getTag(addr), set = getSet(addr); 
-    _sets[set].evict(tag);
+    return _sets[set].evict(tag);
 }
 
 cacheSet::cacheSet(uint32_t blockSize, uint32_t waySize): _ways(), _blockSize(blockSize), _waySize(waySize){}
@@ -97,26 +102,36 @@ void cacheSet::write(uint32_t tag, uint32_t offset) {
 }
 
 // throws evicted block if any
-void cacheSet::insert(uint32_t tag) {
+void cacheSet::insert(uint32_t tag, bool dirty) {
 	if (_ways.size() < _waySize) {
-		_ways.push_back(cacheBlock(tag));
+		_ways.push_back(cacheBlock(tag, dirty));
 		return;
 	}
 	cacheBlock temp = _ways.front();
 	_ways.pop_front();
-	_ways.push_back(cacheBlock(tag));
+	_ways.push_back(cacheBlock(tag, dirty));
 	throw temp; // temp is evicted, throw it
 }
 
-void cacheSet::evict(uint32_t tag)
+bool cacheSet::evict(uint32_t tag)
 {
 	list<cacheBlock>::iterator itr = find(tag);
 	if (itr == _ways.end())
 	{
-        return; // not found
+        return false; // not found
 	}
+	bool currstate = itr->dirty;
     _ways.erase(itr);
-    // TODO: if dirty is relevant, need to check and writeback
+	return currstate; // TODO: if dirty is relevant, need to check and writeback
+}
+
+//set line to dirty
+void cacheSet::set_dirty(uint32_t tag) {
+	list<cacheBlock>::iterator itr = find(tag);
+	if (itr != _ways.end())
+	{
+		itr->dirty = true; // not found
+	}
 }
 
 list<cacheBlock>::iterator cacheSet::find(uint32_t tag) {
@@ -134,14 +149,20 @@ list<cacheBlock>::iterator cacheSet::find(uint32_t tag) {
 //victim c'tor
 victim::victim(uint32_t blockSize) : _blockSize(blockSize), _blocks() {}
 // throws block or NOTFOUND exception
-void victim::get(uint32_t addr) {
+void victim::get(uint32_t addr, bool write_n_a) {
 	uint32_t tag = addr >> _blockSize;
 	list<cacheBlock>::iterator itr = _blocks.begin();
 	while (itr != _blocks.end())
 	{
 		if (itr->tag == tag) {
-			_blocks.erase(itr);
-			throw found(VICTIM);
+			bool dirty = itr->dirty;
+			if (write_n_a) { // if it's write command with w_n_a state
+				itr->dirty = true;
+				return;
+			}else{
+				_blocks.erase(itr);
+			}
+			throw found(VICTIM, dirty); //the data is in the victim cache and it's status is bool-dirty 
 		}
 		itr++;
 	}
@@ -149,15 +170,14 @@ void victim::get(uint32_t addr) {
 }
 
 // throws evicted block if any TODO: is this needed?
-void victim::insert(uint32_t addr) {
+void victim::insert(uint32_t addr, bool dirty) {
 	uint32_t tag = addr >> _blockSize;
     if (_blocks.size() < VICTIMSIZE) {
-        _blocks.push_back(cacheBlock(tag));
+        _blocks.push_back(cacheBlock(tag, dirty));
         return;
     }
     _blocks.pop_front();
-    _blocks.push_back(cacheBlock(tag));
-    //TODO maybe need to update somthing
+    _blocks.push_back(cacheBlock(tag, dirty)); //TODO maybe need to update somthing
 }
 
 MLCache::MLCache(uint32_t MemCyc, uint32_t BSize, uint32_t L1Size, uint32_t L2Size, uint32_t L1Assoc, uint32_t L2Assoc,
@@ -192,11 +212,10 @@ void MLCache::read(uint32_t addr)
         _totalTime += _MemCyc;
         // TODO: do we need more time for inserting new entry?
         throw found(MEMORY);
-        
     }
     catch (const found& fn)
     {
-        copyToCaches(addr, fn.location);
+        copyToCaches(addr, fn.location, fn.dirty);
     }
 }
 
@@ -217,7 +236,7 @@ void MLCache::write(uint32_t addr)
         ++_L2Misses;
         if (_VicCache)
         {
-            // TODO: how to handle Victim cache writes 
+			_vict.get(addr, true); // TODO: how to handle Victim cache writes
             _totalTime += VICTIMTIME;
         }
         // not in any cache, will require mem access
@@ -228,36 +247,38 @@ void MLCache::write(uint32_t addr)
     catch (const found& fn)
     {
         if (_WrAlloc)
-            copyToCaches(addr, fn.location);
+            copyToCaches(addr, fn.location, fn.dirty);
     }
 }
 
-void MLCache::copyToCaches(uint32_t addr, level fromLevel)
+void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
 {
     if(fromLevel == L1) return; // nothing to copy
     if (fromLevel != L2) // need to copy into L2 too
     {
         try
         {
-            _L2.insert(addr);
+            _L2.insert(addr, dirty);
         }
         catch (const EvictedBlock& eb) // there was an eviction in L2, evict from L1
         {
+			//snooping
+			bool dirty = _L1.evict(eb.addr);
 			// send the block to VicCache
 			if (_VicCache)
-				_vict.insert(eb.addr);
-			//snooping
-            _L1.evict(eb.addr);
+				_vict.insert(eb.addr, dirty || eb.dirty);
         }
     }
     // insert to L1
     try
     {
-        _L1.insert(addr);
+        _L1.insert(addr, dirty);
     }
     catch (const EvictedBlock& eb)
     {
-        // TODO: do something if need to writeback
+		if (eb.dirty == true) {//need to update dirty in L2
+			_L2.set_dirty(eb.addr);
+		}
     }
 }
 
