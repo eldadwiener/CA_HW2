@@ -3,9 +3,9 @@
 #include "cache.h"
 #include <iostream>//DEBUG
 
-using namespace std;//DEBUG
+//using namespace std;//DEBUG
 
-int d_count = 1; //DEBUG
+// int d_count = 1; //DEBUG
 
 
 // TODO: MLCache must make sure size - setBits > 0
@@ -196,27 +196,27 @@ MLCache::MLCache(uint32_t MemCyc, uint32_t BSize, uint32_t L1Size, uint32_t L2Si
 
 void MLCache::read(uint32_t addr)
 {
-	cout << "trnsaction num: " << d_count << "op is read" <<endl; //DEBUG
+	// cout << "trnsaction num: " << d_count << "op is read" <<endl; //DEBUG
     // check if exists in L1 cache.
     try
     {
         _totalTime += _L1Cyc; // add access time
         ++_L1Accesses;
         _L1.read(addr); // try reading addr from L1, will throw exception if missing
-		cout << "l1 miss ";//DEBUG
+		// cout << "l1 miss ";//DEBUG
 		// if we are here, addr was not found yet, check L2
         ++_L1Misses;
         _totalTime += _L2Cyc; // add access time
         ++_L2Accesses;
         _L2.read(addr); // try reading addr from L2
-		cout << "l2 miss ";//DEBUG       
+		// cout << "l2 miss ";//DEBUG       
 		// not found in L2, check victim if exists
         ++_L2Misses;
         if (_VicCache)
         {
             _totalTime += VICTIMTIME;
             _vict.get(addr);
-			cout << "vic miss";//DEBUG
+			// cout << "vic miss";//DEBUG
         }
         // not in any cache, get from mem
         _totalTime += _MemCyc;
@@ -227,13 +227,13 @@ void MLCache::read(uint32_t addr)
     {
         copyToCaches(addr, fn.location, fn.dirty);
     }
-	d_count++;
-	cout << endl;
+	// d_count++;
+	// cout << endl;
 }
 
 void MLCache::write(uint32_t addr)
 {
-	cout << "trnsaction num: " << d_count << "op is write" << endl; //DEBUG
+	// cout << "trnsaction num: " << d_count << "op is write" << endl; //DEBUG
     // try caches until write success is thrown
     try
     {
@@ -244,16 +244,16 @@ void MLCache::write(uint32_t addr)
         ++_L1Misses;
         _totalTime += _L2Cyc; 
         ++_L2Accesses;
-		cout << "l1 miss ";//DEBUG
+		// cout << "l1 miss ";//DEBUG
         _L2.write(addr); // try reading addr from L2
         // not in L2, check victim if exists
         ++_L2Misses;
-		cout << "l2 miss ";//DEBUG
+		// cout << "l2 miss ";//DEBUG
         if (_VicCache)
         {
             _totalTime += VICTIMTIME;
 			_vict.get(addr, true); // TODO: how to handle Victim cache writes
-			cout << "vic miss ";//DEBUG
+			// cout << "vic miss ";//DEBUG
         }
         // not in any cache, will require mem access
         _totalTime += _MemCyc;
@@ -263,12 +263,12 @@ void MLCache::write(uint32_t addr)
     catch (const found& fn)
     {
         if (_WrAlloc) {
-            cout << "write alloc, update tabels" << endl; // TODO DEBUG
+            // cout << "write alloc, update tabels" << endl; // TODO DEBUG
             copyToCaches(addr, fn.location, fn.dirty);
         }
     }
-    ++d_count; // TODO DEBUG
-    cout << endl; // TODO DEBUG
+    // ++d_count; // TODO DEBUG
+    // cout << endl; // TODO DEBUG
 }
 
 void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
@@ -300,7 +300,7 @@ void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
             try
             {
                 _L2.write(eb.addr);
-                throw exception("Did not find addr in L2 after WB from L1"); // Should not happen!!
+                throw "Did not find addr in L2 after WB from L1"; // Should not happen!!
             }
             catch (found) {} // since we wrote back from L1, should always find in L2
 		}
