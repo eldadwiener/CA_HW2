@@ -62,7 +62,7 @@ class cacheSet{
 // will hold all the sets and manage them
 class cache{
     public:
-        cache(uint32_t size, uint32_t setBits, uint32_t offsetBits, policy pol, level lev);
+        cache(uint32_t size, uint32_t setBits, uint32_t offsetBits, uint32_t assoc, policy pol, level lev);
         void read(uint32_t addr); // throws if tag does not exist
         void write(uint32_t addr); // throws if tag does not exist
         void insert(uint32_t addr, bool dirty = false); // throws evicted block if any

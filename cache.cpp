@@ -9,8 +9,8 @@ int d_count = 1; //DEBUG
 
 
 // TODO: MLCache must make sure size - setBits > 0
-cache::cache(uint32_t size, uint32_t setBits, uint32_t offsetBits, policy pol, level lev) :
-    _size(size), _setBits(setBits), _offsetBits(offsetBits), _pol(pol), _level(lev), _sets((1 << setBits), cacheSet((1 << offsetBits), (1 << (size - setBits)))) {};
+cache::cache(uint32_t size, uint32_t setBits, uint32_t offsetBits,uint32_t assoc, policy pol, level lev) :
+    _size(size), _setBits(setBits), _offsetBits(offsetBits), _pol(pol), _level(lev), _sets((1 << setBits), cacheSet((1 << offsetBits), (1 << assoc))) {};
 
 uint32_t cache::getSet(uint32_t addr)
 {
@@ -164,7 +164,7 @@ void victim::get(uint32_t addr, bool write_n_a) {
 			bool dirty = itr->dirty;
 			if (write_n_a) { // if it's write command with w_n_a state
 				itr->dirty = true;
-				return;
+                dirty = true;
 			}else{
 				_blocks.erase(itr);
 			}
@@ -191,7 +191,7 @@ MLCache::MLCache(uint32_t MemCyc, uint32_t BSize, uint32_t L1Size, uint32_t L2Si
     _MemCyc(MemCyc), _BSize(BSize), _L1Size(L1Size), _L2Size(L2Size), _L1Assoc(L1Assoc), _L2Assoc(L2Assoc),
     _L1Cyc(L1Cyc), _L2Cyc(L2Cyc), _WrAlloc(WrAlloc), _VicCache(VicCache),
     _L1Misses(0), _L2Misses(0), _totalTime(0), _L1Accesses(0), _L2Accesses(0),
-    _L1(L1Size, L1Assoc, BSize, static_cast<policy>(WrAlloc),L1), _L2(L2Size, L2Assoc, BSize, static_cast<policy>(WrAlloc), L2), _vict(BSize) {}
+    _L1(L1Size, L1Size - BSize - L1Assoc - 1, BSize, L1Assoc, static_cast<policy>(WrAlloc),L1), _L2(L2Size, L2Size - BSize - L2Assoc - 1 , BSize, L2Assoc,static_cast<policy>(WrAlloc), L2), _vict(BSize) {}
 
 
 void MLCache::read(uint32_t addr)
@@ -262,10 +262,13 @@ void MLCache::write(uint32_t addr)
     }
     catch (const found& fn)
     {
-		if (_WrAlloc)
-			cout << "write alloc, update tabels" << endl;
+        if (_WrAlloc) {
+            cout << "write alloc, update tabels" << endl; // TODO DEBUG
             copyToCaches(addr, fn.location, fn.dirty);
+        }
     }
+    ++d_count; // TODO DEBUG
+    cout << endl; // TODO DEBUG
 }
 
 void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)

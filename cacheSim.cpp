@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
 
 		// DEBUG - remove this line
 		//cout << " (dec) " << num << endl;
-        if (operation == 'R')
+        if (operation == 'r')
             sysCache.read(num);
         else
             sysCache.write(num);
