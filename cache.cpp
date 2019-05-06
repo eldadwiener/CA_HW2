@@ -251,8 +251,8 @@ void MLCache::write(uint32_t addr)
 		cout << "l2 miss ";//DEBUG
         if (_VicCache)
         {
-			_vict.get(addr, true); // TODO: how to handle Victim cache writes
             _totalTime += VICTIMTIME;
+			_vict.get(addr, true); // TODO: how to handle Victim cache writes
 			cout << "vic miss ";//DEBUG
         }
         // not in any cache, will require mem access
@@ -278,7 +278,7 @@ void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
     {
         try
         {
-            _L2.insert(addr, dirty);
+            _L2.insert(addr); // only L1 will keep dirty flag
         }
         catch (const EvictedBlock& eb) // there was an eviction in L2, evict from L1
         {
@@ -296,8 +296,13 @@ void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
     }
     catch (const EvictedBlock& eb)
     {
-		if (eb.dirty == true) {//need to update dirty in L2
-			_L2.set_dirty(eb.addr);
+		if (eb.dirty == true) {//need to writeback to L2
+            try
+            {
+                _L2.write(eb.addr);
+                throw exception("Did not find addr in L2 after WB from L1"); // Should not happen!!
+            }
+            catch (found) {} // since we wrote back from L1, should always find in L2
 		}
     }
 }
