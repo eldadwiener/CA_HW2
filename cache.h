@@ -31,8 +31,8 @@ class EvictedBlock :public exception
 class found :public exception
 {
     public:
-        found() {};
-        found(level loc, bool _dirty = false) : location(loc), dirty(_dirty) {};
+        found(bool _dirty = false) : dirty(_dirty) {};
+        found(level loc, bool _dirty) : location(loc), dirty(_dirty) {};
         level location;
 		bool dirty;
 };

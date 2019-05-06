@@ -34,9 +34,9 @@ void cache::read(uint32_t addr)
     {
         _sets[set].read(tag, offset);
     }
-    catch (found) // add finding cache name to exception
+    catch (const found& fn) // add finding cache name to exception
     {
-        throw found(_level);
+        throw found(_level, fn.dirty);
     }
 }
 
@@ -52,9 +52,9 @@ void cache::write(uint32_t addr)
     {
         _sets[set].write(tag, offset);
     }
-    catch (found) // add finding cache name to exception
+    catch (const found& fn) // add finding cache name to exception
     {
-        throw found(_level);
+        throw found(_level, fn.dirty);
     }
 }
 
@@ -90,7 +90,7 @@ void cacheSet::read(uint32_t tag, uint32_t offset) {//Cache fix the tag
 	cacheBlock temp = *itr;
 	_ways.erase(itr);
 	_ways.push_back(temp);
-	throw found();
+	throw found(temp.dirty);
 }
 
 // throws if tag does not exist
@@ -104,7 +104,7 @@ void cacheSet::write(uint32_t tag, uint32_t offset) {
 	_ways.erase(itr);
 	temp.dirty = true;
 	_ways.push_back(temp);
-	throw found();
+	throw found(temp.dirty);
 }
 
 // throws evicted block if any
@@ -191,7 +191,7 @@ MLCache::MLCache(uint32_t MemCyc, uint32_t BSize, uint32_t L1Size, uint32_t L2Si
     _MemCyc(MemCyc), _BSize(BSize), _L1Size(L1Size), _L2Size(L2Size), _L1Assoc(L1Assoc), _L2Assoc(L2Assoc),
     _L1Cyc(L1Cyc), _L2Cyc(L2Cyc), _WrAlloc(WrAlloc), _VicCache(VicCache),
     _L1Misses(0), _L2Misses(0), _totalTime(0), _L1Accesses(0), _L2Accesses(0),
-    _L1(L1Size, L1Size - BSize - L1Assoc - 1, BSize, L1Assoc, static_cast<policy>(WrAlloc),L1), _L2(L2Size, L2Size - BSize - L2Assoc - 1 , BSize, L2Assoc,static_cast<policy>(WrAlloc), L2), _vict(BSize) {}
+    _L1(L1Size, L1Size - BSize - L1Assoc, BSize, L1Assoc, static_cast<policy>(WrAlloc),L1), _L2(L2Size, L2Size - BSize - L2Assoc , BSize, L2Assoc,static_cast<policy>(WrAlloc), L2), _vict(BSize) {}
 
 
 void MLCache::read(uint32_t addr)
@@ -221,7 +221,7 @@ void MLCache::read(uint32_t addr)
         // not in any cache, get from mem
         _totalTime += _MemCyc;
         // TODO: do we need more time for inserting new entry?
-        throw found(MEMORY);
+        throw found(MEMORY, false);
     }
     catch (const found& fn)
     {
@@ -258,7 +258,7 @@ void MLCache::write(uint32_t addr)
         // not in any cache, will require mem access
         _totalTime += _MemCyc;
         // TODO: do we need more time for inserting new entry?
-        throw found(MEMORY);
+        throw found(MEMORY, false);
     }
     catch (const found& fn)
     {

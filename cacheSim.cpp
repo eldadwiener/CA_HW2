@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
     stats st = sysCache.getStats();
 	printf("L1miss=%.03f ", st.L1MissRate);
 	printf("L2miss=%.03f ", st.L2MissRate);
-	printf("AccTimeAvg=%.03f", st.avgAccTime);
+	printf("AccTimeAvg=%.03f\n", st.avgAccTime);
 
 	return 0;
 }

@@ -13,7 +13,9 @@ for filename in tests/test*.out; do
     test_num=`echo $filename | cut -d'.' -f1`
     diff_result=$(diff ${test_num}.out ${test_num}.YoursOut)
     if [ "$diff_result" != "" ]; then
-        echo The test ${test_num} didnt pass
+        echo The test ${test_num} FAILED
+      else
+        echo The test ${test_num} passed
     fi
 done
 
