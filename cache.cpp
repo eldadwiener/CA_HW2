@@ -40,9 +40,9 @@ void cache::read(uint32_t addr)
     }
 }
 
-void cache::set_dirty(uint32_t addr) {
+void cache::set_dirty(uint32_t addr, bool dirty) {
 	uint32_t tag = getTag(addr), set = getSet(addr);
-	_sets[set].set_dirty(tag);
+	_sets[set].set_dirty(tag,dirty);
 }
 
 void cache::write(uint32_t addr)
@@ -132,11 +132,11 @@ bool cacheSet::evict(uint32_t tag)
 }
 
 //set line to dirty
-void cacheSet::set_dirty(uint32_t tag) {
+void cacheSet::set_dirty(uint32_t tag, bool dirty) {
 	list<cacheBlock>::iterator itr = find(tag);
-	if (itr != _ways.end())
+	if (itr != _ways.end())// if found
 	{
-		itr->dirty = true; // not found
+		itr->dirty = dirty; 
 	}
 }
 
@@ -264,7 +264,7 @@ void MLCache::write(uint32_t addr)
     {
         if (_WrAlloc) {
             // cout << "write alloc, update tabels" << endl; // TODO DEBUG
-            copyToCaches(addr, fn.location, fn.dirty);
+            copyToCaches(addr, fn.location, true);
         }
     }
     // ++d_count; // TODO DEBUG
@@ -305,6 +305,8 @@ void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
             catch (found) {} // since we wrote back from L1, should always find in L2
 		}
     }
+    // done inserting to L1, make L2 not dirty (no change to LRU)
+    _L2.set_dirty(addr, false);
 }
 
 

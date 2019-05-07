@@ -51,7 +51,7 @@ class cacheSet{
         void write(uint32_t tag, uint32_t offset); // throws if tag does not exist
         void insert(uint32_t tag, bool dirty = false); // throws evicted block if any
         bool evict(uint32_t tag); // evict addr if in set, otherwise ignore call, support dirty 
-		void set_dirty(uint32_t tag);//set line to dirty
+		void set_dirty(uint32_t tag, bool dirty);//set line to dirty
     private:
         list<cacheBlock>::iterator find(uint32_t tag);
 
@@ -67,7 +67,7 @@ class cache{
         void write(uint32_t addr); // throws if tag does not exist
         void insert(uint32_t addr, bool dirty = false); // throws evicted block if any
         bool evict(uint32_t addr); // evict addr if in cache, otherwise ignore call
-		void set_dirty(uint32_t addr);//set line to dirty
+		void set_dirty(uint32_t addr, bool dirty);//set line to dirty
     private:
         uint32_t getTag(uint32_t addr);
         uint32_t getSet(uint32_t addr);

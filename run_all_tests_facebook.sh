@@ -14,8 +14,8 @@ for filename in tests/test*.out; do
     diff_result=$(diff ${test_num}.out ${test_num}.YoursOut)
     if [ "$diff_result" != "" ]; then
         echo The test ${test_num} FAILED
-      else
-        echo The test ${test_num} passed
+#      else
+#        echo The test ${test_num} passed
     fi
 done
 
