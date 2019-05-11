@@ -14,12 +14,16 @@ using namespace std;
 enum policy{NOWRITEALLOC,WRITEALLOC};
 enum level{L1,L2,VICTIM,MEMORY};
 
+// used to return the final stats to the main function
 typedef struct stats {
     double L1MissRate;
     double L2MissRate;
     double avgAccTime;
 }stats;
 
+// Exception declarations, to be used by the lower hierarcies.
+
+// thrown if L2 needs to evict a block, to make L1 evict as well.
 class EvictedBlock :public exception
 {
     public:
@@ -28,6 +32,7 @@ class EvictedBlock :public exception
 		bool dirty;
 };
 
+// thrown if the requested block was found by the cache.
 class found :public exception
 {
     public:
@@ -36,7 +41,7 @@ class found :public exception
         level location;
 		bool dirty;
 };
-// TODO: can a block be of size 2? if yes, we need 2 blocks per read/write
+
 typedef struct cacheBlock{
     cacheBlock(uint32_t _tag, bool _dirty = false): tag(_tag), dirty(_dirty) {}
     uint32_t tag;
@@ -47,27 +52,26 @@ typedef struct cacheBlock{
 class cacheSet{
     public:
         cacheSet(uint32_t blockSize,uint32_t waySize);
-        void read(uint32_t tag, uint32_t offset); // throws if tag does not exist
-        void write(uint32_t tag, uint32_t offset); // throws if tag does not exist
+        void read(uint32_t tag, uint32_t offset); // throws if tag was found
+        void write(uint32_t tag, uint32_t offset); // throws if tag was found 
         void insert(uint32_t tag, bool dirty = false); // throws evicted block if any
-        bool evict(uint32_t tag); // evict addr if in set, otherwise ignore call, support dirty 
-		void set_dirty(uint32_t tag, bool dirty);//set line to dirty
+        bool evict(uint32_t tag); // evict addr if in set, otherwise ignore call
+		void set_dirty(uint32_t tag, bool dirty); //set line's "dirty" attribute to 'dirty'
     private:
         list<cacheBlock>::iterator find(uint32_t tag);
-
         list<cacheBlock> _ways;
         uint32_t _blockSize, _waySize;
 };
 
-// will hold all the sets and manage them
+// will hold all the cacheSets and manage them
 class cache{
     public:
         cache(uint32_t size, uint32_t setBits, uint32_t offsetBits, uint32_t assoc, policy pol, level lev);
-        void read(uint32_t addr); // throws if tag does not exist
-        void write(uint32_t addr); // throws if tag does not exist
+        void read(uint32_t addr); // throws if tag was found 
+        void write(uint32_t addr); // throws if tag was found
         void insert(uint32_t addr, bool dirty = false); // throws evicted block if any
         bool evict(uint32_t addr); // evict addr if in cache, otherwise ignore call
-		void set_dirty(uint32_t addr, bool dirty);//set line to dirty
+		void set_dirty(uint32_t addr, bool dirty); //set line to dirty
     private:
         uint32_t getTag(uint32_t addr);
         uint32_t getSet(uint32_t addr);
@@ -79,22 +83,25 @@ class cache{
 		vector<cacheSet> _sets;
 };
 
-
+// Will implement the victim cache mechanism if was required by the initialization phase
 class victim {
     public:
         victim(uint32_t blockSize);
-        void get(uint32_t tag, bool write_n_a = false); // throws block or NOTFOUND exception
-        void insert(uint32_t tag, bool dirty = false); // throws evicted block if any TODO: is this needed?
+        void get(uint32_t tag, bool write_n_a = false); // throws "found" if tag is in victim cache 
+        void insert(uint32_t tag, bool dirty = false); // insert cache line into victim cache, will evict old line if needed 
 
     private: 
         uint32_t _blockSize;
         list<cacheBlock> _blocks;
 };
 
+// Main cache entity of the system, will hold the L1,L2 and victim caches, coordinate the read/write operations,
+// Writebacks/evictions, and keep track of all of the stats
 class MLCache {
     public:
         MLCache(uint32_t MemCyc,uint32_t BSize,uint32_t L1Size,uint32_t L2Size,uint32_t L1Assoc,uint32_t L2Assoc,
             uint32_t L1Cyc,uint32_t L2Cyc,uint32_t WrAlloc,uint32_t VicCache);
+        // these are to be called from the main program
         void read(uint32_t addr);
         void write(uint32_t addr);
         stats getStats();

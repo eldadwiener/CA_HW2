@@ -1,27 +1,23 @@
-#include <cmath>
-#include <assert.h>
+//#include <cmath>
 #include "cache.h"
-#include <iostream>//DEBUG
-
-//using namespace std;//DEBUG
-
-// int d_count = 1; //DEBUG
 
 
-// TODO: MLCache must make sure size - setBits > 0
 cache::cache(uint32_t size, uint32_t setBits, uint32_t offsetBits,uint32_t assoc, policy pol, level lev) :
     _size(size), _setBits(setBits), _offsetBits(offsetBits), _pol(pol), _level(lev), _sets((1 << setBits), cacheSet((1 << offsetBits), (1 << assoc))) {};
 
+// extract set bits from full addr
 uint32_t cache::getSet(uint32_t addr)
 {
     return (addr >> _offsetBits) & ((1 << _setBits) - 1);
 }
 
+// extract tag bits from full addr
 uint32_t cache::getTag(uint32_t addr)
 {
     return addr >> (_offsetBits + _setBits);
 }
 
+// extract offset bits from full addr
 uint32_t cache::getOffset(uint32_t addr)
 {
     return addr & ((1 << _offsetBits) - 1);
@@ -38,6 +34,7 @@ void cache::read(uint32_t addr)
     {
         throw found(_level, fn.dirty);
     }
+    // if we do not find, no action is expected.
 }
 
 void cache::set_dirty(uint32_t addr, bool dirty) {
@@ -56,15 +53,18 @@ void cache::write(uint32_t addr)
     {
         throw found(_level, fn.dirty);
     }
+    // if we do not find, no action is expected.
 }
 
 void cache::insert(uint32_t addr, bool dirty)
 {
     uint32_t tag = getTag(addr), set = getSet(addr); 
+    // insert the new block to the relevant set
     try
     {
         _sets[set].insert(tag, dirty);
     }
+    // catch possible evicted block from set
     catch (const cacheBlock& cb) // construct full addr and rethrow
     {
         uint32_t evAddr = (cb.tag << (_setBits + _offsetBits)) + (set << _offsetBits); //with offset 0
@@ -72,6 +72,7 @@ void cache::insert(uint32_t addr, bool dirty)
     }
 }
 
+// returns dirty status of evicted block
 bool cache::evict(uint32_t addr)
 {
     uint32_t tag = getTag(addr), set = getSet(addr); 
@@ -80,7 +81,7 @@ bool cache::evict(uint32_t addr)
 
 cacheSet::cacheSet(uint32_t blockSize, uint32_t waySize): _ways(), _blockSize(blockSize), _waySize(waySize){}
 
-// throws if tag does not exist
+// throws "found" if tag is in victim cache 
 void cacheSet::read(uint32_t tag, uint32_t offset) {//Cache fix the tag
 	list<cacheBlock>::iterator itr = find(tag);
 	if (itr == _ways.end())
@@ -93,7 +94,7 @@ void cacheSet::read(uint32_t tag, uint32_t offset) {//Cache fix the tag
 	throw found(temp.dirty);
 }
 
-// throws if tag does not exist
+// throws "found" if tag is in victim cache 
 void cacheSet::write(uint32_t tag, uint32_t offset) {
 	list<cacheBlock>::iterator itr = find(tag);
 	if (itr == _ways.end())
@@ -119,6 +120,7 @@ void cacheSet::insert(uint32_t tag, bool dirty) {
 	throw temp; // temp is evicted, throw it
 }
 
+// returns dirty status of evicted block
 bool cacheSet::evict(uint32_t tag)
 {
 	list<cacheBlock>::iterator itr = find(tag);
@@ -128,10 +130,9 @@ bool cacheSet::evict(uint32_t tag)
 	}
 	bool currstate = itr->dirty;
     _ways.erase(itr);
-	return currstate; // TODO: if dirty is relevant, need to check and writeback
+	return currstate; // return dirty status for writeback information 
 }
 
-//set line to dirty
 void cacheSet::set_dirty(uint32_t tag, bool dirty) {
 	list<cacheBlock>::iterator itr = find(tag);
 	if (itr != _ways.end())// if found
@@ -140,6 +141,7 @@ void cacheSet::set_dirty(uint32_t tag, bool dirty) {
 	}
 }
 
+// A wrapper function to iterate over the set and look for tag
 list<cacheBlock>::iterator cacheSet::find(uint32_t tag) {
 	list<cacheBlock>::iterator itr = _ways.begin();
 	while (itr != _ways.end())
@@ -149,12 +151,13 @@ list<cacheBlock>::iterator cacheSet::find(uint32_t tag) {
 		}
 		itr++;
 	}
-	return itr;
+	return itr; // will return _ways.end() if not found
 }
 
 //victim c'tor
 victim::victim(uint32_t blockSize) : _blockSize(blockSize), _blocks() {}
-// throws block or NOTFOUND exception
+
+// throws "found" if tag is in victim cache 
 void victim::get(uint32_t addr, bool write_n_a) {
 	uint32_t tag = addr >> _blockSize;
 	list<cacheBlock>::iterator itr = _blocks.begin();
@@ -175,15 +178,17 @@ void victim::get(uint32_t addr, bool write_n_a) {
 	return; // not found
 }
 
-// throws evicted block if any TODO: is this needed?
+// insert a new block to the victim cache, and evict an older one if needed.
 void victim::insert(uint32_t addr, bool dirty) {
 	uint32_t tag = addr >> _blockSize;
     if (_blocks.size() < VICTIMSIZE) {
+        // there is free space, just push the block in
         _blocks.push_back(cacheBlock(tag, dirty));
         return;
     }
+    // no room, evict FIFO 
     _blocks.pop_front();
-    _blocks.push_back(cacheBlock(tag, dirty)); //TODO maybe need to update somthing
+    _blocks.push_back(cacheBlock(tag, dirty)); 
 }
 
 MLCache::MLCache(uint32_t MemCyc, uint32_t BSize, uint32_t L1Size, uint32_t L2Size, uint32_t L1Assoc, uint32_t L2Assoc,
@@ -196,44 +201,38 @@ MLCache::MLCache(uint32_t MemCyc, uint32_t BSize, uint32_t L1Size, uint32_t L2Si
 
 void MLCache::read(uint32_t addr)
 {
-	// cout << "trnsaction num: " << d_count << "op is read" <<endl; //DEBUG
-    // check if exists in L1 cache.
     try
     {
+        // check if exists in L1 cache.
         _totalTime += _L1Cyc; // add access time
         ++_L1Accesses;
         _L1.read(addr); // try reading addr from L1, will throw exception if missing
-		// cout << "l1 miss ";//DEBUG
 		// if we are here, addr was not found yet, check L2
         ++_L1Misses;
+        // check if exists in L2 cache.
         _totalTime += _L2Cyc; // add access time
         ++_L2Accesses;
         _L2.read(addr); // try reading addr from L2
-		// cout << "l2 miss ";//DEBUG       
 		// not found in L2, check victim if exists
         ++_L2Misses;
-        if (_VicCache)
+        if (_VicCache) // if victim exists, check if exists in victim.
         {
             _totalTime += VICTIMTIME;
             _vict.get(addr);
-			// cout << "vic miss";//DEBUG
         }
         // not in any cache, get from mem
         _totalTime += _MemCyc;
-        // TODO: do we need more time for inserting new entry?
         throw found(MEMORY, false);
     }
     catch (const found& fn)
     {
+        // "found" exception hold all data on found memory, copy to L1/L2 if needed
         copyToCaches(addr, fn.location, fn.dirty);
     }
-	// d_count++;
-	// cout << endl;
 }
 
 void MLCache::write(uint32_t addr)
 {
-	// cout << "trnsaction num: " << d_count << "op is write" << endl; //DEBUG
     // try caches until write success is thrown
     try
     {
@@ -244,36 +243,32 @@ void MLCache::write(uint32_t addr)
         ++_L1Misses;
         _totalTime += _L2Cyc; 
         ++_L2Accesses;
-		// cout << "l1 miss ";//DEBUG
         _L2.write(addr); // try reading addr from L2
-        // not in L2, check victim if exists
         ++_L2Misses;
-		// cout << "l2 miss ";//DEBUG
+        // not in L2, check victim if exists
         if (_VicCache)
         {
             _totalTime += VICTIMTIME;
-			_vict.get(addr, true); // TODO: how to handle Victim cache writes
-			// cout << "vic miss ";//DEBUG
+			_vict.get(addr, true); 
         }
         // not in any cache, will require mem access
         _totalTime += _MemCyc;
-        // TODO: do we need more time for inserting new entry?
         throw found(MEMORY, false);
     }
     catch (const found& fn)
     {
+        // once we found it, need to copy to caches if we are in write allocate mode
         if (_WrAlloc) {
-            // cout << "write alloc, update tabels" << endl; // TODO DEBUG
             copyToCaches(addr, fn.location, true);
         }
     }
-    // ++d_count; // TODO DEBUG
-    // cout << endl; // TODO DEBUG
 }
 
+// copy addr from "fromLevel" to all caches in the lower hierarchies
+// also need to handle evictions and writebacks 
 void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
 {
-    if(fromLevel == L1) return; // nothing to copy
+    if(fromLevel == L1) return; // nothing to copy, the addr is already in L1
     if (fromLevel != L2) // need to copy into L2 too
     {
         try
@@ -296,7 +291,7 @@ void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
     }
     catch (const EvictedBlock& eb)
     {
-		if (eb.dirty == true) {//need to writeback to L2
+		if (eb.dirty == true) {// evicted a dirty block from L1, need to writeback to L2
             try
             {
                 _L2.write(eb.addr);
@@ -312,6 +307,7 @@ void MLCache::copyToCaches(uint32_t addr, level fromLevel, bool dirty)
 
 stats MLCache::getStats()
 {
+    // calculate stats and put in a stats object
     stats st;
     st.L1MissRate = ((double)_L1Misses) / _L1Accesses;
     st.L2MissRate = ((double)_L2Misses) / _L2Accesses;
